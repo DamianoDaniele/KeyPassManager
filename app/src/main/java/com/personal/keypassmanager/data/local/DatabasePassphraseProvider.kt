@@ -6,24 +6,23 @@ import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.personal.keypassmanager.utils.EncryptionUtils
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import net.sqlcipher.database.SQLiteDatabase
 import net.sqlcipher.database.SupportFactory
 import java.security.SecureRandom
-import java.util.Properties
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
 object DatabasePassphraseProvider {
 
     private const val PREFS_NAME = "encrypted_prefs"
-    private const val PASSPHRASE_KEY = "db_passphrase"
+    private const val PASSPHRASE_KEY = "db_passphrase" // This is now ONLY the master password
+    private const val DB_ENCRYPTION_KEY = "db_encryption_key" // New key for database encryption
     private const val SECURITY_ANSWER1_KEY = "security_answer1"
     private const val SECURITY_ANSWER2_KEY = "security_answer2"
     private const val SECURITY_ANSWER3_KEY = "security_answer3"
     private const val EMAIL_KEY = "user_email"
     private const val LOGGED_IN_KEY = "is_logged_in"
+    private const val LAST_ACTIVE_KEY = "last_active"
+    private const val SESSION_TIMEOUT_MINUTES = 15L // Timeout di 15 minuti
 
     fun getSupportFactory(password: String): SupportFactory {
         val passphrase = deriveKeyFromPassword(password)
@@ -56,15 +55,15 @@ object DatabasePassphraseProvider {
 
     fun getOrCreateDatabasePassphrase(context: Context): String {
         val prefs = getEncryptedSharedPreferences(context)
-        var passphrase = prefs.getString(PASSPHRASE_KEY, null)
+        var passphrase = prefs.getString(DB_ENCRYPTION_KEY, null)
         if (passphrase == null) {
             val random = SecureRandom()
             val bytes = ByteArray(32)
             random.nextBytes(bytes)
             passphrase = Base64.encodeToString(bytes, Base64.NO_WRAP)
-            prefs.edit().putString(PASSPHRASE_KEY, passphrase).apply()
+            prefs.edit().putString(DB_ENCRYPTION_KEY, passphrase).apply()
         }
-        return passphrase
+        return passphrase ?: "" // Fix: always return a non-null String
     }
 
     fun isMasterPasswordSet(context: Context): Boolean {
@@ -89,6 +88,11 @@ object DatabasePassphraseProvider {
         val prefs = getEncryptedSharedPreferences(context)
         val saved = prefs.getString(PASSPHRASE_KEY, null)
         return saved == password
+    }
+
+    fun getMasterPassword(context: Context): String {
+        val prefs = getEncryptedSharedPreferences(context)
+        return prefs.getString(PASSPHRASE_KEY, "") ?: ""
     }
 
     fun saveSecurityAnswers(context: Context, answer1: String, answer2: String, answer3: String) {
@@ -119,16 +123,30 @@ object DatabasePassphraseProvider {
 
     fun setLoggedIn(context: Context, loggedIn: Boolean) {
         val prefs = getEncryptedSharedPreferences(context)
-        prefs.edit().putBoolean(LOGGED_IN_KEY, loggedIn).apply()
+        prefs.edit().putBoolean(LOGGED_IN_KEY, loggedIn)
+            .putLong(LAST_ACTIVE_KEY, System.currentTimeMillis())
+            .apply()
     }
 
     fun isLoggedIn(context: Context): Boolean {
         val prefs = getEncryptedSharedPreferences(context)
-        return prefs.getBoolean(LOGGED_IN_KEY, false)
+        val loggedIn = prefs.getBoolean(LOGGED_IN_KEY, false)
+        val lastActive = prefs.getLong(LAST_ACTIVE_KEY, 0L)
+        val now = System.currentTimeMillis()
+        val timeoutMillis = SESSION_TIMEOUT_MINUTES * 60 * 1000
+        if (loggedIn && now - lastActive < timeoutMillis) {
+            // Aggiorna il timestamp di attività
+            prefs.edit().putLong(LAST_ACTIVE_KEY, now).apply()
+            return true
+        } else {
+            // Timeout scaduto o non loggato
+            logout(context)
+            return false
+        }
     }
 
     fun logout(context: Context) {
         val prefs = getEncryptedSharedPreferences(context)
-        prefs.edit().putBoolean(LOGGED_IN_KEY, false).apply()
+        prefs.edit().clear().apply() // Cancella tutto per sicurezza
     }
 }

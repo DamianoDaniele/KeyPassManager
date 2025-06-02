@@ -215,7 +215,8 @@ fun MasterPasswordScreen(
                         TextButton(onClick = {
                             if (DatabasePassphraseProvider.checkSecurityAnswers(context, securityInput1, securityInput2, securityInput3)) {
                                 showPassword = true
-                                recoveredPassword = DatabasePassphraseProvider.getOrCreateDatabasePassphrase(context)
+                                // RECUPERO PASSWORD: usa solo la master password, non la passphrase del DB
+                                recoveredPassword = DatabasePassphraseProvider.getMasterPassword(context)
                                 error = null
                             } else {
                                 error = "Risposte errate. Riprova."
