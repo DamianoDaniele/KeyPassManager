@@ -28,7 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.personal.keypassmanager.domain.model.CredentialDomain
+import com.personal.keypassmanager.data.model.CredentialDomain
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

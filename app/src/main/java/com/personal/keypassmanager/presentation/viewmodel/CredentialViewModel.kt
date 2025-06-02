@@ -2,8 +2,8 @@ package com.personal.keypassmanager.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.personal.keypassmanager.data.repository.CredentialRepository
-import com.personal.keypassmanager.domain.model.CredentialDomain
+import com.personal.keypassmanager.data.local.repository.CredentialRepository
+import com.personal.keypassmanager.data.model.CredentialDomain
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 

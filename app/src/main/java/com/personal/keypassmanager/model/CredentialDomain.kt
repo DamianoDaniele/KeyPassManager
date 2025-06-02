@@ -1,4 +1,4 @@
-package com.personal.keypassmanager.domain.model
+package com.personal.keypassmanager.data.model
 
 data class CredentialDomain(
     val id: Int = 0,

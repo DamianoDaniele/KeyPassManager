@@ -1,8 +1,8 @@
-package com.personal.keypassmanager.data.repository
+package com.personal.keypassmanager.data.local.repository
 
 import com.personal.keypassmanager.data.local.dao.CredentialDao
 import com.personal.keypassmanager.data.model.Credential
-import com.personal.keypassmanager.domain.model.CredentialDomain
+import com.personal.keypassmanager.data.model.CredentialDomain
 import com.personal.keypassmanager.utils.EncryptionUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map

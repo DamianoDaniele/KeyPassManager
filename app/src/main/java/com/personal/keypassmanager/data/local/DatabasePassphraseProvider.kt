@@ -1,12 +1,11 @@
 package com.personal.keypassmanager.data.local
 
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
-import android.net.Uri
 import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.personal.keypassmanager.utils.EncryptionUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.sqlcipher.database.SQLiteDatabase
@@ -15,21 +14,16 @@ import java.security.SecureRandom
 import java.util.Properties
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
-import javax.mail.Authenticator
-import javax.mail.Message
-import javax.mail.PasswordAuthentication
-import javax.mail.Session
-import javax.mail.Transport
-import javax.mail.internet.InternetAddress
-import javax.mail.internet.MimeMessage
 
 object DatabasePassphraseProvider {
 
     private const val PREFS_NAME = "encrypted_prefs"
     private const val PASSPHRASE_KEY = "db_passphrase"
+    private const val SECURITY_ANSWER1_KEY = "security_answer1"
+    private const val SECURITY_ANSWER2_KEY = "security_answer2"
+    private const val SECURITY_ANSWER3_KEY = "security_answer3"
     private const val EMAIL_KEY = "user_email"
-    private const val RESET_CODE_KEY = "reset_code"
-    private const val RESET_CODE_EXPIRY_KEY = "reset_code_expiry"
+    private const val LOGGED_IN_KEY = "is_logged_in"
 
     fun getSupportFactory(password: String): SupportFactory {
         val passphrase = deriveKeyFromPassword(password)
@@ -83,52 +77,6 @@ object DatabasePassphraseProvider {
         prefs.edit().putString(PASSPHRASE_KEY, password).apply()
     }
 
-    fun checkMasterPassword(context: Context, password: String): Boolean {
-        val prefs = getEncryptedSharedPreferences(context)
-        val saved = prefs.getString(PASSPHRASE_KEY, null)
-        return saved == password
-    }
-
-    fun saveUserEmail(context: Context, email: String) {
-        val prefs = getEncryptedSharedPreferences(context)
-        prefs.edit().putString(EMAIL_KEY, email).apply()
-    }
-
-    fun getUserEmail(context: Context): String? {
-        val prefs = getEncryptedSharedPreferences(context)
-        return prefs.getString(EMAIL_KEY, null)
-    }
-
-    fun saveResetCode(context: Context, code: String, expiry: Long) {
-        val prefs = getEncryptedSharedPreferences(context)
-        prefs.edit().putString(RESET_CODE_KEY, code)
-            .putLong(RESET_CODE_EXPIRY_KEY, expiry)
-            .apply()
-    }
-
-    fun getResetCode(context: Context): Pair<String?, Long> {
-        val prefs = getEncryptedSharedPreferences(context)
-        return prefs.getString(RESET_CODE_KEY, null) to prefs.getLong(RESET_CODE_EXPIRY_KEY, 0L)
-    }
-
-    fun clearResetCode(context: Context) {
-        val prefs = getEncryptedSharedPreferences(context)
-        prefs.edit().remove(RESET_CODE_KEY).remove(RESET_CODE_EXPIRY_KEY).apply()
-    }
-
-    fun sendResetEmailIntent(context: Context, email: String, code: String) {
-        val subject = "Codice di recupero KeyPassManager"
-        val body = "Il tuo codice di recupero è: $code\nValido per 10 minuti."
-        val intent = Intent(Intent.ACTION_SENDTO).apply {
-            data = Uri.parse("mailto:")
-            putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
-            putExtra(Intent.EXTRA_SUBJECT, subject)
-            putExtra(Intent.EXTRA_TEXT, body)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
-    }
-
     fun saveMasterPasswordAndEmail(context: Context, password: String, email: String) {
         val prefs = getEncryptedSharedPreferences(context)
         prefs.edit()
@@ -137,33 +85,50 @@ object DatabasePassphraseProvider {
             .apply()
     }
 
-    suspend fun sendResetEmailSmtp(
-        smtpHost: String,
-        smtpPort: String,
-        smtpUser: String,
-        smtpPassword: String,
-        toEmail: String,
-        code: String
-    ) {
-        val props = Properties().apply {
-            put("mail.smtp.auth", "true")
-            put("mail.smtp.starttls.enable", "true")
-            put("mail.smtp.host", smtpHost)
-            put("mail.smtp.port", smtpPort)
-        }
-        val session = Session.getInstance(props, object : Authenticator() {
-            override fun getPasswordAuthentication(): PasswordAuthentication {
-                return PasswordAuthentication(smtpUser, smtpPassword)
-            }
-        })
-        val message = MimeMessage(session).apply {
-            setFrom(InternetAddress(smtpUser))
-            setRecipients(Message.RecipientType.TO, InternetAddress.parse(toEmail))
-            subject = "Codice di recupero KeyPassManager"
-            setText("Il tuo codice di recupero è: $code\nValido per 10 minuti.")
-        }
-        withContext(Dispatchers.IO) {
-            Transport.send(message)
-        }
+    fun checkMasterPassword(context: Context, password: String): Boolean {
+        val prefs = getEncryptedSharedPreferences(context)
+        val saved = prefs.getString(PASSPHRASE_KEY, null)
+        return saved == password
+    }
+
+    fun saveSecurityAnswers(context: Context, answer1: String, answer2: String, answer3: String) {
+        val prefs = getEncryptedSharedPreferences(context)
+        prefs.edit()
+            .putString(SECURITY_ANSWER1_KEY, EncryptionUtils.encrypt(answer1.trim().lowercase()))
+            .putString(SECURITY_ANSWER2_KEY, EncryptionUtils.encrypt(answer2.trim().lowercase()))
+            .putString(SECURITY_ANSWER3_KEY, EncryptionUtils.encrypt(answer3.trim().lowercase()))
+            .apply()
+    }
+
+    fun checkSecurityAnswers(context: Context, answer1: String, answer2: String, answer3: String): Boolean {
+        val prefs = getEncryptedSharedPreferences(context)
+        val a1 = prefs.getString(SECURITY_ANSWER1_KEY, null)?.let { EncryptionUtils.decrypt(it) }
+        val a2 = prefs.getString(SECURITY_ANSWER2_KEY, null)?.let { EncryptionUtils.decrypt(it) }
+        val a3 = prefs.getString(SECURITY_ANSWER3_KEY, null)?.let { EncryptionUtils.decrypt(it) }
+        return a1 == answer1.trim().lowercase() &&
+               a2 == answer2.trim().lowercase() &&
+               a3 == answer3.trim().lowercase()
+    }
+
+    fun areSecurityAnswersSet(context: Context): Boolean {
+        val prefs = getEncryptedSharedPreferences(context)
+        return prefs.getString(SECURITY_ANSWER1_KEY, null) != null &&
+               prefs.getString(SECURITY_ANSWER2_KEY, null) != null &&
+               prefs.getString(SECURITY_ANSWER3_KEY, null) != null
+    }
+
+    fun setLoggedIn(context: Context, loggedIn: Boolean) {
+        val prefs = getEncryptedSharedPreferences(context)
+        prefs.edit().putBoolean(LOGGED_IN_KEY, loggedIn).apply()
+    }
+
+    fun isLoggedIn(context: Context): Boolean {
+        val prefs = getEncryptedSharedPreferences(context)
+        return prefs.getBoolean(LOGGED_IN_KEY, false)
+    }
+
+    fun logout(context: Context) {
+        val prefs = getEncryptedSharedPreferences(context)
+        prefs.edit().putBoolean(LOGGED_IN_KEY, false).apply()
     }
 }

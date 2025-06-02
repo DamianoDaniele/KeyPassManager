@@ -16,7 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
-import com.personal.keypassmanager.domain.model.CredentialDomain
+import com.personal.keypassmanager.data.model.CredentialDomain
 
 @Composable
 fun CredentialListScreen(

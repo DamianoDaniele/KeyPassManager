@@ -1,7 +1,7 @@
-package com.personal.keypassmanager.data.mapper
+package com.personal.keypassmanager.data.local.mapper
 
 import com.personal.keypassmanager.data.model.Credential
-import com.personal.keypassmanager.domain.model.CredentialDomain
+import com.personal.keypassmanager.data.model.CredentialDomain
 import com.personal.keypassmanager.utils.EncryptionUtils
 
 fun Credential.toDomain(): CredentialDomain {
