@@ -49,7 +49,8 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onDeleteCredential = { cred ->
                     credentialViewModel.deleteCredential(cred)
-                }
+                },
+                credentialViewModel = credentialViewModel
             )
         }
         composable("credential_edit") {

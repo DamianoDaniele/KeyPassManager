@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.personal.keypassmanager.data.model.CredentialDomain
+import com.personal.keypassmanager.presentation.viewmodel.CredentialViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalAnimationApi::class)
@@ -67,7 +68,8 @@ fun CredentialListScreen(
     credentials: List<CredentialDomain>,
     onAddCredential: () -> Unit,
     onEditCredential: (CredentialDomain) -> Unit,
-    onDeleteCredential: (CredentialDomain) -> Unit
+    onDeleteCredential: (CredentialDomain) -> Unit,
+    credentialViewModel: CredentialViewModel
 ) {
     val (selected, setSelected) = remember { mutableStateOf<CredentialDomain?>(null) }
     val (toDelete, setToDelete) = remember { mutableStateOf<CredentialDomain?>(null) }
@@ -83,8 +85,24 @@ fun CredentialListScreen(
             TopAppBar(title = { Text("Le mie credenziali") })
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddCredential) {
-                Icon(Icons.Default.Add, contentDescription = "Aggiungi")
+            Column {
+                FloatingActionButton(onClick = onAddCredential) {
+                    Icon(Icons.Default.Add, contentDescription = "Aggiungi")
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                FloatingActionButton(onClick = {
+                    scope.launch {
+                        credentialViewModel.restoreAllBackups { restored ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    if (restored > 0) "$restored credenziali ripristinate dal backup" else "Nessuna nuova credenziale trovata nel backup"
+                                )
+                            }
+                        }
+                    }
+                }) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = "Ripristina backup")
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }

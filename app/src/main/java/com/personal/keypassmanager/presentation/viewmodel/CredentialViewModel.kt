@@ -46,6 +46,14 @@ class CredentialViewModel(
         }
     }
 
+    // Ripristina tutte le credenziali dai backup
+    fun restoreAllBackups(onResult: (Int) -> Unit) {
+        viewModelScope.launch {
+            val restored = repository.restoreAllBackups()
+            onResult(restored)
+        }
+    }
+
     // Aggiorna una credenziale esistente
     fun updateCredential(credential: CredentialDomain) {
         viewModelScope.launch {
