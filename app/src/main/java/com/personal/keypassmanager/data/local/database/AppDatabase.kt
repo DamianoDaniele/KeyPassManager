@@ -8,9 +8,11 @@ import com.personal.keypassmanager.data.local.DatabasePassphraseProvider
 import com.personal.keypassmanager.data.local.dao.CredentialDao
 import com.personal.keypassmanager.data.model.Credential
 
+// Database Room principale per la gestione delle credenziali cifrate.
 @Database(entities = [Credential::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
+    // Restituisce il DAO per le credenziali
     abstract fun credentialDao(): CredentialDao
 
     companion object {

@@ -11,6 +11,7 @@ import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
+// Provider per la gestione sicura della passphrase e chiavi di cifratura del database.
 object DatabasePassphraseProvider {
 
     private const val PREFS_NAME = "encrypted_prefs"
@@ -19,16 +20,17 @@ object DatabasePassphraseProvider {
     private const val SECURITY_ANSWER1_KEY = "security_answer1"
     private const val SECURITY_ANSWER2_KEY = "security_answer2"
     private const val SECURITY_ANSWER3_KEY = "security_answer3"
-    private const val EMAIL_KEY = "user_email"
     private const val LOGGED_IN_KEY = "is_logged_in"
     private const val LAST_ACTIVE_KEY = "last_active"
     private const val SESSION_TIMEOUT_MINUTES = 15L // Timeout di 15 minuti
 
+    // Restituisce la SupportFactory per Room con la chiave derivata
     fun getSupportFactory(password: String): SupportFactory {
         val passphrase = deriveKeyFromPassword(password)
         return SupportFactory(passphrase)
     }
 
+    // Deriva una chiave sicura dalla password
     private fun deriveKeyFromPassword(password: String): ByteArray {
         val salt = "fixed_salt_placeholder".toByteArray() // Should be unique per user in production
         val iterations = 10000
@@ -53,6 +55,7 @@ object DatabasePassphraseProvider {
         )
     }
 
+    // Restituisce la passphrase del database, generandola se non esiste
     fun getOrCreateDatabasePassphrase(context: Context): String {
         val prefs = getEncryptedSharedPreferences(context)
         var passphrase = prefs.getString(DB_ENCRYPTION_KEY, null)
@@ -66,35 +69,32 @@ object DatabasePassphraseProvider {
         return passphrase ?: "" // Fix: always return a non-null String
     }
 
+    // Controlla se la password master è impostata
     fun isMasterPasswordSet(context: Context): Boolean {
         val prefs = getEncryptedSharedPreferences(context)
         return prefs.getString(PASSPHRASE_KEY, null) != null
     }
 
+    // Salva la password master
     fun saveMasterPassword(context: Context, password: String) {
         val prefs = getEncryptedSharedPreferences(context)
         prefs.edit().putString(PASSPHRASE_KEY, password).apply()
     }
 
-    fun saveMasterPasswordAndEmail(context: Context, password: String, email: String) {
-        val prefs = getEncryptedSharedPreferences(context)
-        prefs.edit()
-            .putString(PASSPHRASE_KEY, password)
-            .putString(EMAIL_KEY, email)
-            .apply()
-    }
-
+    // Controlla se la password master fornita corrisponde a quella salvata
     fun checkMasterPassword(context: Context, password: String): Boolean {
         val prefs = getEncryptedSharedPreferences(context)
         val saved = prefs.getString(PASSPHRASE_KEY, null)
         return saved == password
     }
 
+    // Restituisce la password master salvata
     fun getMasterPassword(context: Context): String {
         val prefs = getEncryptedSharedPreferences(context)
         return prefs.getString(PASSPHRASE_KEY, "") ?: ""
     }
 
+    // Salva le risposte alle domande di sicurezza
     fun saveSecurityAnswers(context: Context, answer1: String, answer2: String, answer3: String) {
         val prefs = getEncryptedSharedPreferences(context)
         prefs.edit()
@@ -104,6 +104,7 @@ object DatabasePassphraseProvider {
             .apply()
     }
 
+    // Controlla se le risposte alle domande di sicurezza corrispondono a quelle salvate
     fun checkSecurityAnswers(context: Context, answer1: String, answer2: String, answer3: String): Boolean {
         val prefs = getEncryptedSharedPreferences(context)
         val a1 = prefs.getString(SECURITY_ANSWER1_KEY, null)?.let { EncryptionUtils.decrypt(it) }
@@ -114,6 +115,7 @@ object DatabasePassphraseProvider {
                a3 == answer3.trim().lowercase()
     }
 
+    // Controlla se sono state impostate tutte le risposte alle domande di sicurezza
     fun areSecurityAnswersSet(context: Context): Boolean {
         val prefs = getEncryptedSharedPreferences(context)
         return prefs.getString(SECURITY_ANSWER1_KEY, null) != null &&
@@ -121,6 +123,7 @@ object DatabasePassphraseProvider {
                prefs.getString(SECURITY_ANSWER3_KEY, null) != null
     }
 
+    // Imposta lo stato di accesso dell'utente
     fun setLoggedIn(context: Context, loggedIn: Boolean) {
         val prefs = getEncryptedSharedPreferences(context)
         prefs.edit().putBoolean(LOGGED_IN_KEY, loggedIn)
@@ -128,6 +131,7 @@ object DatabasePassphraseProvider {
             .apply()
     }
 
+    // Controlla se l'utente è attualmente connesso
     fun isLoggedIn(context: Context): Boolean {
         val prefs = getEncryptedSharedPreferences(context)
         val loggedIn = prefs.getBoolean(LOGGED_IN_KEY, false)
@@ -145,6 +149,7 @@ object DatabasePassphraseProvider {
         }
     }
 
+    // Disconnette l'utente e cancella i dati di accesso
     fun logout(context: Context) {
         val prefs = getEncryptedSharedPreferences(context)
         prefs.edit().clear().apply() // Cancella tutto per sicurezza

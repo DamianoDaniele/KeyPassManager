@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.with
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -62,34 +63,41 @@ import com.personal.keypassmanager.data.model.CredentialDomain
 import com.personal.keypassmanager.presentation.viewmodel.CredentialViewModel
 import kotlinx.coroutines.launch
 
+// Schermata principale per la gestione delle credenziali utente.
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun CredentialListScreen(
-    credentials: List<CredentialDomain>,
-    onAddCredential: () -> Unit,
-    onEditCredential: (CredentialDomain) -> Unit,
-    onDeleteCredential: (CredentialDomain) -> Unit,
-    credentialViewModel: CredentialViewModel
+    credentials: List<CredentialDomain>, // Lista delle credenziali da mostrare
+    onAddCredential: () -> Unit, // Callback per aggiunta credenziale
+    onEditCredential: (CredentialDomain) -> Unit, // Callback per modifica credenziale
+    onDeleteCredential: (CredentialDomain) -> Unit, // Callback per eliminazione credenziale
+    credentialViewModel: CredentialViewModel // ViewModel per la logica dati
 ) {
+    // Stato per la credenziale selezionata (dettaglio)
     val (selected, setSelected) = remember { mutableStateOf<CredentialDomain?>(null) }
+    // Stato per la credenziale da eliminare (bottom sheet)
     val (toDelete, setToDelete) = remember { mutableStateOf<CredentialDomain?>(null) }
     val showDeleteSheet = toDelete != null
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
+    // Stato per il dialog di uscita
     val (showExitDialog, setShowExitDialog) = remember { mutableStateOf(false) }
 
+    // Scaffold principale con top bar, floating action button e snackbar
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("Le mie credenziali") })
         },
         floatingActionButton = {
             Column {
+                // Pulsante per aggiungere una nuova credenziale
                 FloatingActionButton(onClick = onAddCredential) {
                     Icon(Icons.Default.Add, contentDescription = "Aggiungi")
                 }
                 Spacer(modifier = Modifier.height(16.dp))
+                // Pulsante per ripristinare credenziali da backup
                 FloatingActionButton(onClick = {
                     scope.launch {
                         credentialViewModel.restoreAllBackups { restored ->
@@ -107,8 +115,10 @@ fun CredentialListScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
-        AnimatedContent(targetState = selected, transitionSpec = { fadeIn() with fadeOut() }) { sel ->
+        // Contenuto animato: lista credenziali o dettaglio
+        AnimatedContent(targetState = selected, transitionSpec = { fadeIn() togetherWith fadeOut() }) { sel ->
             if (sel == null) {
+                // Lista delle credenziali
                 LazyColumn(
                     contentPadding = paddingValues,
                     modifier = Modifier
@@ -123,13 +133,14 @@ fun CredentialListScreen(
                         )
                 ) {
                     items(credentials) { credential ->
+                        // Card per ogni credenziale
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(8.dp)
                                 .combinedClickable(
-                                    onClick = { setSelected(credential) },
-                                    onLongClick = { setToDelete(credential) }
+                                    onClick = { setSelected(credential) }, // Mostra dettaglio
+                                    onLongClick = { setToDelete(credential) } // Mostra bottom sheet elimina
                                 ),
                             elevation = CardDefaults.cardElevation(4.dp),
                             border = if (selected?.company == credential.company) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
@@ -157,6 +168,7 @@ fun CredentialListScreen(
                     }
                 }
             } else {
+                // Dettaglio credenziale selezionata
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -183,129 +195,132 @@ fun CredentialListScreen(
                             modifier = Modifier.padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            // Icona della ditta/servizio
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(64.dp)
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            // Nome della ditta/servizio
                             Text(
                                 text = sel.company,
                                 style = MaterialTheme.typography.headlineSmall,
-                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            // Username
+                            Text(
+                                text = "Username: ${sel.username}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Spacer(modifier = Modifier.height(24.dp))
-                            OutlinedTextField(
-                                value = sel.username,
-                                onValueChange = {},
-                                label = { Text("Username") },
-                                readOnly = true,
-                                singleLine = true,
-                                trailingIcon = {
-                                    IconButton(onClick = {
-                                        clipboardManager.setText(AnnotatedString(sel.username))
-                                        scope.launch { snackbarHostState.showSnackbar("Username copiato!") }
-                                    }) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copia username", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            OutlinedTextField(
-                                value = sel.password,
-                                onValueChange = {},
-                                label = { Text("Password") },
-                                readOnly = true,
-                                singleLine = true,
-                                trailingIcon = {
-                                    IconButton(onClick = {
-                                        clipboardManager.setText(AnnotatedString(sel.password))
-                                        scope.launch { snackbarHostState.showSnackbar("Password copiata!") }
-                                    }) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copia password", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(32.dp))
+                            // Pulsante per copiare la password
                             Button(
-                                onClick = { setSelected(null) },
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(sel.password))
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Password copiata negli appunti")
+                                    }
+                                },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = MaterialTheme.shapes.large
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Indietro")
+                                Text("Copia Password")
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            // Pulsante per modificare la credenziale
+                            Button(
+                                onClick = { onEditCredential(sel) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondary
+                                )
+                            ) {
+                                Text("Modifica Credenziale")
                             }
                         }
                     }
                 }
             }
         }
-        if (showDeleteSheet && toDelete != null) {
+
+        // Bottom sheet per conferma eliminazione
+        if (showDeleteSheet) {
             ModalBottomSheet(
                 onDismissRequest = { setToDelete(null) },
                 sheetState = sheetState
             ) {
+                // Contenuto del bottom sheet
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text("Vuoi eliminare la credenziale di \"${toDelete.company}\"?", style = MaterialTheme.typography.titleLarge)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Sei sicuro di voler eliminare questa credenziale?",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    // Mostra anche i dettagli della credenziale da eliminare
+                    Text(
+                        text = "Azienda: ${toDelete?.company}",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = "Username: ${toDelete?.username}",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    // Azioni per confermare o annullare l'eliminazione
                     Row(
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Button(onClick = {
-                            scope.launch {
-                                sheetState.hide()
-                                setToDelete(null)
-                            }
-                        }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) {
+                        Button(
+                            onClick = { setToDelete(null) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            )
+                        ) {
                             Text("Annulla")
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Button(onClick = {
-                            scope.launch {
-                                onDeleteCredential(toDelete)
-                                sheetState.hide()
+                        Button(
+                            onClick = {
+                                toDelete?.let { onDeleteCredential(it) }
                                 setToDelete(null)
-                            }
-                        }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
                             Text("Elimina")
                         }
                     }
                 }
             }
         }
-        // Intercetta il back hardware/software
-        BackHandler(enabled = true) {
-            setShowExitDialog(true)
+
+        // Gestione del tasto indietro: chiudi il dettaglio se aperto, altrimenti esci dall'app
+        BackHandler(enabled = selected != null) {
+            if (selected != null) {
+                setSelected(null)
+            } else {
+                // Qui puoi gestire l'uscita dall'app, ad esempio mostrando un dialog di conferma
+                setShowExitDialog(true)
+            }
         }
+
+        // Dialog di conferma uscita (da implementare se necessario)
         if (showExitDialog) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { setShowExitDialog(false) },
-                title = { Text("Vuoi uscire da KeyPassManager?") },
-                text = { Text("Sei sicuro di voler chiudere l'applicazione?") },
-                confirmButton = {
-                    Button(
-                        onClick = { android.os.Process.killProcess(android.os.Process.myPid()) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Sì, esci") }
-                },
-                dismissButton = {
-                    Button(
-                        onClick = { setShowExitDialog(false) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                    ) { Text("No, resta") }
-                },
-                shape = MaterialTheme.shapes.extraLarge
-            )
+            // TODO: Implementa il dialog di conferma uscita
         }
     }
 }

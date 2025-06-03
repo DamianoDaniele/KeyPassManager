@@ -9,6 +9,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import android.util.Base64
 
+// Utility per la cifratura e decifratura AES sicura tramite Android Keystore.
 object EncryptionUtils {
 
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
@@ -42,6 +43,7 @@ object EncryptionUtils {
         return (keyStore.getEntry(KEY_ALIAS, null) as KeyStore.SecretKeyEntry).secretKey
     }
 
+    // Cifra una stringa in modo sicuro (AES/GCM)
     fun encrypt(plainText: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getSecretKey())
@@ -53,6 +55,7 @@ object EncryptionUtils {
         return Base64.encodeToString(combined, Base64.NO_WRAP)
     }
 
+    // Decifra una stringa cifrata
     fun decrypt(encryptedData: String): String {
         val combined = Base64.decode(encryptedData, Base64.NO_WRAP)
         val iv = combined.copyOfRange(0, IV_SIZE)

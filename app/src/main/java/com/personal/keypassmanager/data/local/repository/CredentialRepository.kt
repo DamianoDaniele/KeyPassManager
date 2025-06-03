@@ -12,8 +12,10 @@ import java.io.File
 import java.io.FileWriter
 import java.io.IOException
 
+// Repository che gestisce l'accesso ai dati, backup e ripristino delle credenziali.
 class CredentialRepository(private val credentialDao: CredentialDao, private val context: Context) {
 
+    // Restituisce tutte le credenziali come flusso
     fun getAllCredentials(): Flow<List<CredentialDomain>> {
         return credentialDao.getAllCredentials().map { list ->
             list.map { credential ->
@@ -26,6 +28,7 @@ class CredentialRepository(private val credentialDao: CredentialDao, private val
         return credentialDao.getCredentialById(id)?.toDomain()
     }
 
+    // Inserisce una nuova credenziale e la salva anche in backup
     suspend fun insertCredential(credential: CredentialDomain) {
         credentialDao.insertCredential(credential.toEntity())
         backupCredentialToFile(credential)
@@ -92,6 +95,51 @@ class CredentialRepository(private val credentialDao: CredentialDao, private val
             } catch (_: Exception) {}
         }
         return restored
+    }
+
+    /**
+     * Cancella tutte le credenziali dal database.
+     */
+    suspend fun clearDatabase() {
+        val all = credentialDao.getAllCredentials().first()
+        for (cred in all) {
+            credentialDao.deleteCredential(cred)
+        }
+    }
+
+    /**
+     * Elimina fisicamente il database Room e i file associati (db, -shm, -wal).
+     * Da chiamare in caso di corruzione per forzare la ricreazione del db.
+     */
+    fun deleteDatabaseFiles() {
+        val dbName = "keypass_encrypted.db"
+        val dbFile = File(context.getDatabasePath(dbName).absolutePath)
+        val shmFile = File(context.getDatabasePath(dbName).absolutePath + "-shm")
+        val walFile = File(context.getDatabasePath(dbName).absolutePath + "-wal")
+        dbFile.delete()
+        shmFile.delete()
+        walFile.delete()
+    }
+
+    /**
+     * Reset completo: elimina fisicamente il db e i file associati, poi ricrea il db vuoto.
+     */
+    suspend fun hardResetDatabase() {
+        deleteDatabaseFiles()
+        // Forza la ricreazione del db accedendo al DAO
+        credentialDao.getAllCredentials().first()
+    }
+
+    /**
+     * Reset e ripristino da backup: elimina fisicamente il db, ricrea il db e importa i backup.
+     * Ritorna true se almeno una credenziale è stata ripristinata.
+     */
+    suspend fun hardResetAndRestoreFromBackup(): Boolean {
+        deleteDatabaseFiles()
+        // Forza la ricreazione del db accedendo al DAO
+        credentialDao.getAllCredentials().first()
+        val restored = restoreAllBackups()
+        return restored > 0
     }
 
     // Estensioni per la conversione tra Entity e Domain

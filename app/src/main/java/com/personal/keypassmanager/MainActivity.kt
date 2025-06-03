@@ -12,6 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import com.personal.keypassmanager.navigation.NavGraph
 import com.personal.keypassmanager.ui.theme.KeyPassManagerTheme
 
+// Activity principale che avvia la UI Compose e la navigazione.
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

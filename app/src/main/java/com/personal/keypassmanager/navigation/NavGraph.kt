@@ -14,7 +14,10 @@ import com.personal.keypassmanager.presentation.screen.credentials.CredentialEdi
 import com.personal.keypassmanager.presentation.screen.credentials.CredentialListScreen
 import com.personal.keypassmanager.presentation.screen.masterpassword.MasterPasswordScreen
 import com.personal.keypassmanager.presentation.viewmodel.CredentialViewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 
+// Gestisce la navigazione tra le schermate principali dell'app.
 @Composable
 fun NavGraph(navController: NavHostController) {
     // Inizializza il ViewModel e il repository
@@ -28,6 +31,7 @@ fun NavGraph(navController: NavHostController) {
         }
     })
     val credentials by credentialViewModel.credentials.collectAsState()
+    val dbCorruption by credentialViewModel.dbCorruption.collectAsState()
 
     NavHost(navController, startDestination = "master_password") {
         composable("master_password") {
@@ -35,7 +39,10 @@ fun NavGraph(navController: NavHostController) {
                 context = context,
                 onUnlock = {
                     navController.navigate("credential_list")
-                }
+                },
+                dbCorruption = dbCorruption,
+                onResetAndRestore = { onComplete -> credentialViewModel.hardResetAndRestoreFromBackup(onComplete) },
+                onReset = credentialViewModel::hardResetDatabase
             )
         }
         composable("credential_list") {
@@ -57,8 +64,9 @@ fun NavGraph(navController: NavHostController) {
             CredentialEditScreen(
                 credential = null,
                 onSave = { cred ->
-                    credentialViewModel.insertCredential(cred)
-                    navController.popBackStack()
+                    credentialViewModel.insertCredential(cred) {
+                        navController.popBackStack()
+                    }
                 },
                 onCancel = {
                     navController.popBackStack()

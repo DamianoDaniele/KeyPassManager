@@ -30,6 +30,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.personal.keypassmanager.data.model.CredentialDomain
 
+// Schermata per inserimento o modifica di una credenziale.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CredentialEditScreen(

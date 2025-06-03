@@ -4,6 +4,7 @@ import com.personal.keypassmanager.data.model.Credential
 import com.personal.keypassmanager.data.model.CredentialDomain
 import com.personal.keypassmanager.utils.EncryptionUtils
 
+// Funzioni di mapping tra entità Room e modello dominio, con cifratura/decifratura.
 fun Credential.toDomain(): CredentialDomain {
     return CredentialDomain(
         id = id,
