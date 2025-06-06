@@ -58,7 +58,8 @@ fun MasterPasswordScreen(
     var showPassword by remember { mutableStateOf(false) }
     var recoveredPassword by remember { mutableStateOf("") }
     var showRegistration by remember { mutableStateOf(false) }
-    val coroutineScope = remember { CoroutineScope(Dispatchers.Main) }
+    //val coroutineScope = remember { CoroutineScope(Dispatchers.Main) }
+    remember { CoroutineScope(Dispatchers.Main) }
     var showDbErrorDialog by remember { mutableStateOf(false) }
     var restoreResult by remember { mutableStateOf<String?>(null) }
     var showExitDialog by remember { mutableStateOf(false) }
@@ -340,7 +341,7 @@ fun MasterPasswordScreen(
 
     // Dialog di conferma uscita
     if (showExitDialog) {
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { showExitDialog = false },
             title = { Text("Vuoi uscire dall'app?") },
             text = { Text("Sei sicuro di voler uscire da KeyPassManager?") },

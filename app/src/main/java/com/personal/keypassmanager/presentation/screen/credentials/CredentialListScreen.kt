@@ -3,11 +3,9 @@ package com.personal.keypassmanager.presentation.screen.credentials
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.with
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -27,10 +25,8 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,10 +34,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -64,7 +58,6 @@ import com.personal.keypassmanager.presentation.viewmodel.CredentialViewModel
 import kotlinx.coroutines.launch
 
 // Schermata principale per la gestione delle credenziali utente.
-@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun CredentialListScreen(
     credentials: List<CredentialDomain>, // Lista delle credenziali da mostrare
@@ -83,7 +76,8 @@ fun CredentialListScreen(
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     // Stato per il dialog di uscita
-    val (showExitDialog, setShowExitDialog) = remember { mutableStateOf(false) }
+    //val (showExitDialog, setShowExitDialog) = remember { mutableStateOf(false) }
+    remember { mutableStateOf(false) }
 
     // Scaffold principale con top bar, floating action button e snackbar
     Scaffold(
@@ -218,7 +212,24 @@ fun CredentialListScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            // Pulsante per copiare l'username
+                            Button(
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(sel.username))
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Username copiato negli appunti")
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            ) {
+                                Text("Copia Username")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             // Pulsante per copiare la password
                             Button(
                                 onClick = {

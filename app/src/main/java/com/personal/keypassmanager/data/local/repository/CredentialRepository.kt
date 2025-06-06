@@ -111,7 +111,7 @@ class CredentialRepository(private val credentialDao: CredentialDao, private val
      * Elimina fisicamente il database Room e i file associati (db, -shm, -wal).
      * Da chiamare in caso di corruzione per forzare la ricreazione del db.
      */
-    fun deleteDatabaseFiles() {
+    private fun deleteDatabaseFiles() {
         val dbName = "keypass_encrypted.db"
         val dbFile = File(context.getDatabasePath(dbName).absolutePath)
         val shmFile = File(context.getDatabasePath(dbName).absolutePath + "-shm")
