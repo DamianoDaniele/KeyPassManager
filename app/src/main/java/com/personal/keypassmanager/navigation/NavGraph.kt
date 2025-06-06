@@ -51,7 +51,8 @@ fun NavGraph(navController: NavHostController) {
                 onAddCredential = {
                     navController.navigate("credential_edit")
                 },
-                onEditCredential = {
+                onEditCredential = { credential ->
+                    credentialViewModel.selectCredential(credential)
                     navController.navigate("credential_edit")
                 },
                 onDeleteCredential = { cred ->
@@ -61,14 +62,20 @@ fun NavGraph(navController: NavHostController) {
             )
         }
         composable("credential_edit") {
+            val selectedCredential by credentialViewModel.selectedCredential.collectAsState()
             CredentialEditScreen(
-                credential = null,
+                credential = selectedCredential,
                 onSave = { cred ->
-                    credentialViewModel.insertCredential(cred) {
-                        navController.popBackStack()
+                    if (selectedCredential != null) {
+                        credentialViewModel.updateCredential(cred)
+                    } else {
+                        credentialViewModel.insertCredential(cred)
                     }
+                    credentialViewModel.clearSelectedCredential()
+                    navController.popBackStack()
                 },
                 onCancel = {
+                    credentialViewModel.clearSelectedCredential()
                     navController.popBackStack()
                 }
             )

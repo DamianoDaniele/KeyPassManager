@@ -216,9 +216,9 @@ fun CredentialListScreen(
                                 text = "Username: ${sel.username}",
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.fillMaxWidth(),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                             )
-                            Spacer(modifier = Modifier.height(24.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             // Pulsante per copiare la password
                             Button(
                                 onClick = {
@@ -229,7 +229,8 @@ fun CredentialListScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             ) {
                                 Text("Copia Password")
@@ -240,7 +241,8 @@ fun CredentialListScreen(
                                 onClick = { onEditCredential(sel) },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.secondary
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             ) {
                                 Text("Modifica Credenziale")
@@ -252,75 +254,71 @@ fun CredentialListScreen(
         }
 
         // Bottom sheet per conferma eliminazione
-        if (showDeleteSheet) {
+        if (showDeleteSheet && toDelete != null) {
             ModalBottomSheet(
                 onDismissRequest = { setToDelete(null) },
                 sheetState = sheetState
             ) {
                 // Contenuto del bottom sheet
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Sei sicuro di voler eliminare questa credenziale?",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    // Mostra anche i dettagli della credenziale da eliminare
-                    Text(
-                        text = "Azienda: ${toDelete?.company}",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        text = "Username: ${toDelete?.username}",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    // Azioni per confermare o annullare l'eliminazione
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        Text(
+                            text = "Sei sicuro di voler eliminare questa credenziale?",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        // Nome della ditta/servizio da eliminare
+                        Text(
+                            text = toDelete.company,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        // Pulsante per confermare eliminazione
+                        Button(
+                            onClick = {
+                                onDeleteCredential(toDelete)
+                                setToDelete(null)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
+                            Text("Elimina definitivamente")
+                        }
+                        // Pulsante per annullare
                         Button(
                             onClick = { setToDelete(null) },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         ) {
                             Text("Annulla")
-                        }
-                        Button(
-                            onClick = {
-                                toDelete?.let { onDeleteCredential(it) }
-                                setToDelete(null)
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Text("Elimina")
                         }
                     }
                 }
             }
         }
 
-        // Gestione del tasto indietro: chiudi il dettaglio se aperto, altrimenti esci dall'app
-        BackHandler(enabled = selected != null) {
-            if (selected != null) {
-                setSelected(null)
+        // Gestione back press per chiudere il dettaglio o il bottom sheet
+        BackHandler(enabled = selected != null || showDeleteSheet) {
+            if (showDeleteSheet) {
+                setToDelete(null)
             } else {
-                // Qui puoi gestire l'uscita dall'app, ad esempio mostrando un dialog di conferma
-                setShowExitDialog(true)
+                setSelected(null)
             }
-        }
-
-        // Dialog di conferma uscita (da implementare se necessario)
-        if (showExitDialog) {
-            // TODO: Implementa il dialog di conferma uscita
         }
     }
 }
