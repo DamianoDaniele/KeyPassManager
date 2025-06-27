@@ -1,12 +1,15 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package com.personal.keypassmanager.presentation.screen.credentials
 
+import android.app.Activity
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +30,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -51,9 +57,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.common.api.Scope
+import com.personal.keypassmanager.MainActivity
 import com.personal.keypassmanager.data.model.CredentialDomain
+import com.personal.keypassmanager.drive.DriveServiceHelper
 import com.personal.keypassmanager.presentation.viewmodel.CredentialViewModel
 import kotlinx.coroutines.launch
 
@@ -78,6 +90,10 @@ fun CredentialListScreen(
     // Stato per il dialog di uscita
     //val (showExitDialog, setShowExitDialog) = remember { mutableStateOf(false) }
     remember { mutableStateOf(false) }
+    val (showDriveDialog, setShowDriveDialog) = remember { mutableStateOf(false) }
+    val (isBackup, setIsBackup) = remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    val activity = context as? Activity
 
     // Scaffold principale con top bar, floating action button e snackbar
     Scaffold(
@@ -85,25 +101,39 @@ fun CredentialListScreen(
             TopAppBar(title = { Text("Le mie credenziali") })
         },
         floatingActionButton = {
-            Column {
+            Column(horizontalAlignment = Alignment.End) {
                 // Pulsante per aggiungere una nuova credenziale
                 FloatingActionButton(onClick = onAddCredential) {
                     Icon(Icons.Default.Add, contentDescription = "Aggiungi")
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                // Pulsante per ripristinare credenziali da backup
+                // Pulsante per ripristino locale (come era prima)
                 FloatingActionButton(onClick = {
                     scope.launch {
                         credentialViewModel.restoreAllBackups { restored ->
                             scope.launch {
                                 snackbarHostState.showSnackbar(
-                                    if (restored > 0) "$restored credenziali ripristinate dal backup" else "Nessuna nuova credenziale trovata nel backup"
+                                    if (restored > 0) "$restored credenziali ripristinate dal backup locale" else "Nessuna nuova credenziale trovata nel backup locale"
                                 )
                             }
                         }
                     }
                 }) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = "Ripristina backup")
+                    Icon(Icons.Default.CheckCircle, contentDescription = "Ripristina backup locale")
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                // Pulsante Backup/Ripristino Google Drive
+                FloatingActionButton(onClick = {
+                    val account = DriveServiceHelper.getLastSignedInAccount(context)
+                    if (account == null) {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Effettua prima l'accesso con Google")
+                        }
+                    } else {
+                        setShowDriveDialog(true)
+                    }
+                }, containerColor = MaterialTheme.colorScheme.primary) {
+                    Icon(Icons.Default.CloudUpload, contentDescription = "Backup/Ripristino Drive")
                 }
             }
         },
@@ -265,7 +295,7 @@ fun CredentialListScreen(
         }
 
         // Bottom sheet per conferma eliminazione
-        if (showDeleteSheet && toDelete != null) {
+        if (toDelete != null) {
             ModalBottomSheet(
                 onDismissRequest = { setToDelete(null) },
                 sheetState = sheetState
@@ -323,6 +353,45 @@ fun CredentialListScreen(
             }
         }
 
+        // Dialog per backup/ripristino Google Drive
+        if (showDriveDialog) {
+            AlertDialog(
+                onDismissRequest = { setShowDriveDialog(false) },
+                title = { Text("Backup/Ripristino Google Drive") },
+                text = { Text("Vuoi eseguire un backup o ripristinare le credenziali da Google Drive?") },
+                confirmButton = {
+                    Button(onClick = {
+                        val account = DriveServiceHelper.getLastSignedInAccount(context)
+                        if (account != null) {
+                            credentialViewModel.backupToGoogleDrive(account, context) { ok ->
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        if (ok) "Backup su Drive completato" else "Backup su Drive fallito"
+                                    )
+                                }
+                            }
+                        }
+                        setShowDriveDialog(false)
+                    }) { Text("Backup") }
+                },
+                dismissButton = {
+                    Button(onClick = {
+                        val account = DriveServiceHelper.getLastSignedInAccount(context)
+                        if (account != null) {
+                            credentialViewModel.restoreFromGoogleDrive(account, context) { restored ->
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        if (restored.isNotEmpty()) "${restored.size} credenziali ripristinate da Drive" else "Nessun dato trovato su Drive"
+                                    )
+                                }
+                            }
+                        }
+                        setShowDriveDialog(false)
+                    }) { Text("Ripristina") }
+                }
+            )
+        }
+
         // Gestione back press per chiudere il dettaglio o il bottom sheet
         BackHandler(enabled = selected != null || showDeleteSheet) {
             if (showDeleteSheet) {
@@ -333,3 +402,4 @@ fun CredentialListScreen(
         }
     }
 }
+

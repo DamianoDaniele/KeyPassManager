@@ -1,8 +1,10 @@
 package com.personal.keypassmanager.presentation.viewmodel
 
 import android.database.sqlite.SQLiteException
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.personal.keypassmanager.data.local.repository.CredentialRepository
 import com.personal.keypassmanager.data.model.CredentialDomain
 import kotlinx.coroutines.flow.*
@@ -115,6 +117,22 @@ class CredentialViewModel(
             val ok = repository.hardResetAndRestoreFromBackup()
             _dbCorruption.value = false
             onComplete(ok)
+        }
+    }
+
+    // Backup su Google Drive
+    fun backupToGoogleDrive(account: GoogleSignInAccount, context: Context, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = repository.backupToGoogleDrive(account, _credentials.value, context)
+            onResult(ok)
+        }
+    }
+
+    // Ripristino da Google Drive
+    fun restoreFromGoogleDrive(account: GoogleSignInAccount, context: Context, onResult: (List<CredentialDomain>) -> Unit) {
+        viewModelScope.launch {
+            val restored = repository.restoreFromGoogleDrive(account, context)
+            onResult(restored)
         }
     }
 }
