@@ -1,9 +1,9 @@
 package com.personal.keypassmanager.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -14,8 +14,6 @@ import com.personal.keypassmanager.presentation.screen.credentials.CredentialEdi
 import com.personal.keypassmanager.presentation.screen.credentials.CredentialListScreen
 import com.personal.keypassmanager.presentation.screen.masterpassword.MasterPasswordScreen
 import com.personal.keypassmanager.presentation.viewmodel.CredentialViewModel
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 
 // Gestisce la navigazione tra le schermate principali dell'app.
 @Composable
@@ -30,8 +28,8 @@ fun NavGraph(navController: NavHostController) {
             return CredentialViewModel(repository) as T
         }
     })
-    val credentials by credentialViewModel.credentials.collectAsState()
-    val dbCorruption by credentialViewModel.dbCorruption.collectAsState()
+    val credentials by credentialViewModel.credentials.collectAsStateWithLifecycle()
+    val dbCorruption by credentialViewModel.dbCorruption.collectAsStateWithLifecycle()
 
     NavHost(navController, startDestination = "master_password") {
         composable("master_password") {
@@ -62,7 +60,7 @@ fun NavGraph(navController: NavHostController) {
             )
         }
         composable("credential_edit") {
-            val selectedCredential by credentialViewModel.selectedCredential.collectAsState()
+            val selectedCredential by credentialViewModel.selectedCredential.collectAsStateWithLifecycle()
             CredentialEditScreen(
                 credential = selectedCredential,
                 onSave = { cred ->

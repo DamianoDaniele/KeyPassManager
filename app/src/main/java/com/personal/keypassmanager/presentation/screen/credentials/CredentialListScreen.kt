@@ -60,7 +60,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
-import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.common.api.Scope
 import com.personal.keypassmanager.MainActivity
@@ -126,8 +125,13 @@ fun CredentialListScreen(
                 FloatingActionButton(onClick = {
                     val account = DriveServiceHelper.getLastSignedInAccount(context)
                     if (account == null) {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Effettua prima l'accesso con Google")
+                        // Avvia Google Sign-In senza callback diretto
+                        if (activity is MainActivity) {
+                            activity.launchGoogleSignIn()
+                        } else {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Impossibile avviare Google Sign-In")
+                            }
                         }
                     } else {
                         setShowDriveDialog(true)

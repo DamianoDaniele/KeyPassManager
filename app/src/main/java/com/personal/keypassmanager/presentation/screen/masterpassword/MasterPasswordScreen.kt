@@ -22,9 +22,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.personal.keypassmanager.data.local.DatabasePassphraseProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 // Schermata di login/registrazione e gestione master password.
 @Composable
@@ -47,7 +50,11 @@ fun MasterPasswordScreen(
     var masterPassword by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    val isSet = remember { DatabasePassphraseProvider.isMasterPasswordSet(context) }
+    val coroutineScope = rememberCoroutineScope()
+    var isSet by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        isSet = DatabasePassphraseProvider.isMasterPasswordSet(context)
+    }
     var showSecurityDialog by remember { mutableStateOf(false) }
     var securityAnswer1 by remember { mutableStateOf("") }
     var securityAnswer2 by remember { mutableStateOf("") }
@@ -128,21 +135,23 @@ fun MasterPasswordScreen(
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = {
-                if (!isSet) {
-                    if (securityAnswer1.isBlank() || securityAnswer2.isBlank() || securityAnswer3.isBlank()) {
-                        error = "Rispondi a tutte le domande di sicurezza."
-                        return@Button
-                    }
-                    DatabasePassphraseProvider.saveMasterPassword(context, masterPassword)
-                    DatabasePassphraseProvider.saveSecurityAnswers(context, securityAnswer1, securityAnswer2, securityAnswer3)
-                    error = null
-                    onUnlock()
-                } else {
-                    if (DatabasePassphraseProvider.checkMasterPassword(context, masterPassword)) {
+                coroutineScope.launch {
+                    if (!isSet) {
+                        if (securityAnswer1.isBlank() || securityAnswer2.isBlank() || securityAnswer3.isBlank()) {
+                            error = "Rispondi a tutte le domande di sicurezza."
+                            return@launch
+                        }
+                        DatabasePassphraseProvider.saveMasterPassword(context, masterPassword)
+                        DatabasePassphraseProvider.saveSecurityAnswers(context, securityAnswer1, securityAnswer2, securityAnswer3)
                         error = null
                         onUnlock()
                     } else {
-                        error = "Codice errato. Riprova."
+                        if (DatabasePassphraseProvider.checkMasterPassword(context, masterPassword)) {
+                            error = null
+                            onUnlock()
+                        } else {
+                            error = "Codice errato. Riprova."
+                        }
                     }
                 }
             },
@@ -199,15 +208,17 @@ fun MasterPasswordScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        if (DatabasePassphraseProvider.checkSecurityAnswers(context, securityInput1, securityInput2, securityInput3)) {
-                            showPassword = true
-                            // RECUPERO PASSWORD: usa solo la master password, non la passphrase del DB
-                            recoveredPassword = DatabasePassphraseProvider.getMasterPassword(context)
-                            error = null
-                        } else {
-                            error = "Risposte errate. Riprova."
+                        coroutineScope.launch {
+                            if (DatabasePassphraseProvider.checkSecurityAnswers(context, securityInput1, securityInput2, securityInput3)) {
+                                showPassword = true
+                                // RECUPERO PASSWORD: usa solo la master password, non la passphrase del DB
+                                recoveredPassword = DatabasePassphraseProvider.getMasterPassword(context)
+                                error = null
+                            } else {
+                                error = "Risposte errate. Riprova."
+                            }
+                            showSecurityDialog = false
                         }
-                        showSecurityDialog = false
                     }) { Text("Conferma") }
                 },
                 dismissButton = {
@@ -284,14 +295,16 @@ fun MasterPasswordScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        if (masterPassword.isNotBlank() && securityAnswer1.isNotBlank() && securityAnswer2.isNotBlank() && securityAnswer3.isNotBlank()) {
-                            DatabasePassphraseProvider.saveMasterPassword(context, masterPassword)
-                            DatabasePassphraseProvider.saveSecurityAnswers(context, securityAnswer1, securityAnswer2, securityAnswer3)
-                            error = null
-                            showRegistration = false
-                            onUnlock()
-                        } else {
-                            error = "Compila tutti i campi."
+                        coroutineScope.launch {
+                            if (masterPassword.isNotBlank() && securityAnswer1.isNotBlank() && securityAnswer2.isNotBlank() && securityAnswer3.isNotBlank()) {
+                                DatabasePassphraseProvider.saveMasterPassword(context, masterPassword)
+                                DatabasePassphraseProvider.saveSecurityAnswers(context, securityAnswer1, securityAnswer2, securityAnswer3)
+                                error = null
+                                showRegistration = false
+                                onUnlock()
+                            } else {
+                                error = "Compila tutti i campi."
+                            }
                         }
                     }) { Text("Registra") }
                 }

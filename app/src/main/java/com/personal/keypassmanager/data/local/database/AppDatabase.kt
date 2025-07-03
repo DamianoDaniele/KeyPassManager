@@ -21,7 +21,8 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val dbPassphrase = DatabasePassphraseProvider.getOrCreateDatabasePassphrase(context)
+                // Usa la versione SINCRONA per Room (non suspend!)
+                val dbPassphrase = DatabasePassphraseProvider.getOrCreateDatabasePassphraseSync(context)
                 val factory = DatabasePassphraseProvider.getSupportFactory(dbPassphrase)
                 val instance = Room.databaseBuilder(
                     context.applicationContext,

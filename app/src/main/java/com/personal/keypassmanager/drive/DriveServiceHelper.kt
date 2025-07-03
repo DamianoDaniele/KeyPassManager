@@ -1,6 +1,5 @@
 package com.personal.keypassmanager.drive
 
-import android.accounts.Account
 import android.content.Context
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -8,10 +7,8 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.Scope
-import com.google.android.gms.tasks.Tasks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.concurrent.TimeUnit
 
 object DriveServiceHelper {
     fun getSignInClient(context: Context): GoogleSignInClient {
@@ -32,6 +29,7 @@ object DriveServiceHelper {
         try {
             GoogleAuthUtil.getToken(context, realAccount, "oauth2:https://www.googleapis.com/auth/drive.appdata")
         } catch (e: Exception) {
+            android.util.Log.e("DriveServiceHelper", "Errore accesso token Google Drive", e)
             null
         }
     }

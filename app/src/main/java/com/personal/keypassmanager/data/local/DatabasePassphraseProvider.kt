@@ -4,8 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.security.crypto.MasterKeys
 import com.personal.keypassmanager.utils.EncryptionUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import net.sqlcipher.database.SupportFactory
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
@@ -41,22 +43,80 @@ object DatabasePassphraseProvider {
         return factory.generateSecret(spec).encoded
     }
 
-    private fun getEncryptedSharedPreferences(context: Context): SharedPreferences {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-
-        return EncryptedSharedPreferences.create(
-            context,
-            PREFS_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+    // Versione sospesa per accesso sicuro alle EncryptedSharedPreferences
+    private suspend fun getEncryptedSharedPreferencesAsync(context: Context): SharedPreferences = withContext(Dispatchers.IO) {
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+        try {
+            EncryptedSharedPreferences.create(
+                PREFS_NAME,
+                masterKeyAlias,
+                context,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            val isBadTag = e is javax.crypto.AEADBadTagException
+            val isProtoBuf = e.javaClass.name == "com.google.crypto.tink.shaded.protobuf.InvalidProtocolBufferException"
+            if (isBadTag || isProtoBuf) {
+                context.deleteSharedPreferences(PREFS_NAME)
+                EncryptedSharedPreferences.create(
+                    PREFS_NAME,
+                    masterKeyAlias,
+                    context,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } else {
+                throw e
+            }
+        }
     }
 
-    // Restituisce la passphrase del database, generandola se non esiste
-    fun getOrCreateDatabasePassphrase(context: Context): String {
+    // Versione sincrona per retrocompatibilità interna (solo per uso interno, evitare in UI)
+    private fun getEncryptedSharedPreferences(context: Context): SharedPreferences {
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+        return try {
+            EncryptedSharedPreferences.create(
+                PREFS_NAME,
+                masterKeyAlias,
+                context,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            val isBadTag = e is javax.crypto.AEADBadTagException
+            val isProtoBuf = e.javaClass.name == "com.google.crypto.tink.shaded.protobuf.InvalidProtocolBufferException"
+            if (isBadTag || isProtoBuf) {
+                context.deleteSharedPreferences(PREFS_NAME)
+                EncryptedSharedPreferences.create(
+                    PREFS_NAME,
+                    masterKeyAlias,
+                    context,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } else {
+                throw e
+            }
+        }
+    }
+
+    // Restituisce la passphrase del database, generandola se non esiste (sospesa)
+    suspend fun getOrCreateDatabasePassphrase(context: Context): String = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
+        var passphrase = prefs.getString(DB_ENCRYPTION_KEY, null)
+        if (passphrase == null) {
+            val random = SecureRandom()
+            val bytes = ByteArray(32)
+            random.nextBytes(bytes)
+            passphrase = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            prefs.edit().putString(DB_ENCRYPTION_KEY, passphrase).apply()
+        }
+        passphrase ?: ""
+    }
+
+    // Versione sincrona per uso Room/legacy
+    fun getOrCreateDatabasePassphraseSync(context: Context): String {
         val prefs = getEncryptedSharedPreferences(context)
         var passphrase = prefs.getString(DB_ENCRYPTION_KEY, null)
         if (passphrase == null) {
@@ -66,37 +126,37 @@ object DatabasePassphraseProvider {
             passphrase = Base64.encodeToString(bytes, Base64.NO_WRAP)
             prefs.edit().putString(DB_ENCRYPTION_KEY, passphrase).apply()
         }
-        return passphrase ?: "" // Fix: always return a non-null String
+        return passphrase ?: ""
     }
 
-    // Controlla se la password master è impostata
-    fun isMasterPasswordSet(context: Context): Boolean {
-        val prefs = getEncryptedSharedPreferences(context)
-        return prefs.getString(PASSPHRASE_KEY, null) != null
+    // Controlla se la password master è impostata (sospesa)
+    suspend fun isMasterPasswordSet(context: Context): Boolean = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
+        prefs.getString(PASSPHRASE_KEY, null) != null
     }
 
-    // Salva la password master
-    fun saveMasterPassword(context: Context, password: String) {
-        val prefs = getEncryptedSharedPreferences(context)
+    // Salva la password master (sospesa)
+    suspend fun saveMasterPassword(context: Context, password: String) = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
         prefs.edit().putString(PASSPHRASE_KEY, password).apply()
     }
 
-    // Controlla se la password master fornita corrisponde a quella salvata
-    fun checkMasterPassword(context: Context, password: String): Boolean {
-        val prefs = getEncryptedSharedPreferences(context)
+    // Controlla se la password master fornita corrisponde a quella salvata (sospesa)
+    suspend fun checkMasterPassword(context: Context, password: String): Boolean = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
         val saved = prefs.getString(PASSPHRASE_KEY, null)
-        return saved == password
+        saved == password
     }
 
-    // Restituisce la password master salvata
-    fun getMasterPassword(context: Context): String {
-        val prefs = getEncryptedSharedPreferences(context)
-        return prefs.getString(PASSPHRASE_KEY, "") ?: ""
+    // Restituisce la password master salvata (sospesa)
+    suspend fun getMasterPassword(context: Context): String = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
+        prefs.getString(PASSPHRASE_KEY, "") ?: ""
     }
 
-    // Salva le risposte alle domande di sicurezza
-    fun saveSecurityAnswers(context: Context, answer1: String, answer2: String, answer3: String) {
-        val prefs = getEncryptedSharedPreferences(context)
+    // Salva le risposte alle domande di sicurezza (sospesa)
+    suspend fun saveSecurityAnswers(context: Context, answer1: String, answer2: String, answer3: String) = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
         prefs.edit()
             .putString(SECURITY_ANSWER1_KEY, EncryptionUtils.encrypt(answer1.trim().lowercase()))
             .putString(SECURITY_ANSWER2_KEY, EncryptionUtils.encrypt(answer2.trim().lowercase()))
@@ -104,36 +164,36 @@ object DatabasePassphraseProvider {
             .apply()
     }
 
-    // Controlla se le risposte alle domande di sicurezza corrispondono a quelle salvate
-    fun checkSecurityAnswers(context: Context, answer1: String, answer2: String, answer3: String): Boolean {
-        val prefs = getEncryptedSharedPreferences(context)
+    // Controlla se le risposte alle domande di sicurezza corrispondono a quelle salvate (sospesa)
+    suspend fun checkSecurityAnswers(context: Context, answer1: String, answer2: String, answer3: String): Boolean = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
         val a1 = prefs.getString(SECURITY_ANSWER1_KEY, null)?.let { EncryptionUtils.decrypt(it) }
         val a2 = prefs.getString(SECURITY_ANSWER2_KEY, null)?.let { EncryptionUtils.decrypt(it) }
         val a3 = prefs.getString(SECURITY_ANSWER3_KEY, null)?.let { EncryptionUtils.decrypt(it) }
-        return a1 == answer1.trim().lowercase() &&
-               a2 == answer2.trim().lowercase() &&
-               a3 == answer3.trim().lowercase()
+        a1 == answer1.trim().lowercase() &&
+        a2 == answer2.trim().lowercase() &&
+        a3 == answer3.trim().lowercase()
     }
 
-    // Controlla se sono state impostate tutte le risposte alle domande di sicurezza
-    fun areSecurityAnswersSet(context: Context): Boolean {
-        val prefs = getEncryptedSharedPreferences(context)
-        return prefs.getString(SECURITY_ANSWER1_KEY, null) != null &&
-               prefs.getString(SECURITY_ANSWER2_KEY, null) != null &&
-               prefs.getString(SECURITY_ANSWER3_KEY, null) != null
+    // Controlla se sono state impostate tutte le risposte alle domande di sicurezza (sospesa)
+    suspend fun areSecurityAnswersSet(context: Context): Boolean = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
+        prefs.getString(SECURITY_ANSWER1_KEY, null) != null &&
+        prefs.getString(SECURITY_ANSWER2_KEY, null) != null &&
+        prefs.getString(SECURITY_ANSWER3_KEY, null) != null
     }
 
-    // Imposta lo stato di accesso dell'utente
-    fun setLoggedIn(context: Context, loggedIn: Boolean) {
-        val prefs = getEncryptedSharedPreferences(context)
+    // Imposta lo stato di accesso dell'utente (sospesa)
+    suspend fun setLoggedIn(context: Context, loggedIn: Boolean) = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
         prefs.edit().putBoolean(LOGGED_IN_KEY, loggedIn)
             .putLong(LAST_ACTIVE_KEY, System.currentTimeMillis())
             .apply()
     }
 
-    // Controlla se l'utente è attualmente connesso
-    fun isLoggedIn(context: Context): Boolean {
-        val prefs = getEncryptedSharedPreferences(context)
+    // Controlla se l'utente è attualmente connesso (sospesa)
+    suspend fun isLoggedIn(context: Context): Boolean = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
         val loggedIn = prefs.getBoolean(LOGGED_IN_KEY, false)
         val lastActive = prefs.getLong(LAST_ACTIVE_KEY, 0L)
         val now = System.currentTimeMillis()
@@ -141,17 +201,23 @@ object DatabasePassphraseProvider {
         if (loggedIn && now - lastActive < timeoutMillis) {
             // Aggiorna il timestamp di attività
             prefs.edit().putLong(LAST_ACTIVE_KEY, now).apply()
-            return true
+            true
         } else {
             // Timeout scaduto o non loggato
-            logout(context)
-            return false
+            logoutAsync(context)
+            false
         }
     }
 
-    // Disconnette l'utente e cancella i dati di accesso
+    // Disconnette l'utente e cancella i dati di accesso (sospesa)
+    suspend fun logoutAsync(context: Context) = withContext(Dispatchers.IO) {
+        val prefs = getEncryptedSharedPreferencesAsync(context)
+        prefs.edit().clear().apply()
+    }
+
+    // Versione sincrona per compatibilità legacy (da evitare in UI)
     fun logout(context: Context) {
         val prefs = getEncryptedSharedPreferences(context)
-        prefs.edit().clear().apply() // Cancella tutto per sicurezza
+        prefs.edit().clear().apply()
     }
 }

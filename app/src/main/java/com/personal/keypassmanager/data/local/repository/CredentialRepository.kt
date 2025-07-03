@@ -12,13 +12,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.io.FileWriter
 import java.io.IOException
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -54,15 +49,15 @@ class CredentialRepository(private val credentialDao: CredentialDao, private val
 
     private fun backupCredentialToFile(credential: CredentialDomain) {
         try {
-            val backupDir = File(context.filesDir, "keypassbackup")
+            val backupDir = java.io.File(context.filesDir, "keypassbackup")
             if (!backupDir.exists()) backupDir.mkdirs()
-            val backupFile = File(backupDir, "backup_${System.currentTimeMillis()}.txt")
-            FileWriter(backupFile, false).use { writer ->
+            val backupFile = java.io.File(backupDir, "backup_${System.currentTimeMillis()}.txt")
+            java.io.FileWriter(backupFile, false).use { writer ->
                 writer.write("Company: ${credential.company}\n")
                 writer.write("Username: ${credential.username}\n")
                 writer.write("Password: ${credential.password}\n")
             }
-        } catch (e: IOException) {
+        } catch (e: java.io.IOException) {
             e.printStackTrace()
         }
     }
@@ -73,7 +68,7 @@ class CredentialRepository(private val credentialDao: CredentialDao, private val
      * Ritorna il numero di credenziali ripristinate.
      */
     suspend fun restoreAllBackups(): Int {
-        val backupDir = File(context.filesDir, "keypassbackup")
+        val backupDir = java.io.File(context.filesDir, "keypassbackup")
         if (!backupDir.exists() || !backupDir.isDirectory) return 0
         val files = backupDir.listFiles() ?: return 0
         var restored = 0
@@ -123,9 +118,9 @@ class CredentialRepository(private val credentialDao: CredentialDao, private val
      */
     private fun deleteDatabaseFiles() {
         val dbName = "keypass_encrypted.db"
-        val dbFile = File(context.getDatabasePath(dbName).absolutePath)
-        val shmFile = File(context.getDatabasePath(dbName).absolutePath + "-shm")
-        val walFile = File(context.getDatabasePath(dbName).absolutePath + "-wal")
+        val dbFile = java.io.File(context.getDatabasePath(dbName).absolutePath)
+        val shmFile = java.io.File(context.getDatabasePath(dbName).absolutePath + "-shm")
+        val walFile = java.io.File(context.getDatabasePath(dbName).absolutePath + "-wal")
         dbFile.delete()
         shmFile.delete()
         walFile.delete()
@@ -155,11 +150,11 @@ class CredentialRepository(private val credentialDao: CredentialDao, private val
     // Serializzazione/Deserializzazione JSON semplice (puoi sostituire con kotlinx.serialization se già presente)
     private fun buildJsonBackup(credentials: List<CredentialDomain>): String {
         return credentials.joinToString(",", prefix = "[", postfix = "]") {
-            """{\"company\":\"${it.company}\",\"username\":\"${it.username}\",\"password\":\"${it.password}\"}"""
+            "{\"company\":\"${it.company}\",\"username\":\"${it.username}\",\"password\":\"${it.password}\"}"
         }
     }
     private fun parseJsonBackup(json: String): List<CredentialDomain> {
-        val regex = Regex("""\{"company":"(.*?)","username":"(.*?)","password":"(.*?)"}""")
+        val regex = Regex("{\"company\":\"(.*?)\",\"username\":\"(.*?)\",\"password\":\"(.*?)\"}")
         return regex.findAll(json).map {
             val (company, username, password) = it.destructured
             CredentialDomain(0, company, username, password)
@@ -185,70 +180,60 @@ class CredentialRepository(private val credentialDao: CredentialDao, private val
         )
     }
 
-    // Backup su Google Drive (appDataFolder)
-    suspend fun backupToGoogleDrive(account: GoogleSignInAccount, credentials: List<CredentialDomain>, context: Context): Boolean {
-        val token = DriveServiceHelper.getAccessToken(account, context) ?: return false
-        val client = OkHttpClient()
-        val jsonArray = JSONArray()
-        credentials.forEach {
-            val obj = JSONObject()
-            obj.put("company", it.company)
-            obj.put("username", it.username)
-            obj.put("password", it.password)
-            jsonArray.put(obj)
-        }
-        val json = jsonArray.toString()
-        val mediaType = "application/json; charset=utf-8".toMediaType()
-        val body = json.toRequestBody(mediaType)
-        val metadata = """{"name":"backup.json","parents":["appDataFolder"]}"""
-        val multipartBody = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
-            .addFormDataPart("metadata", null, metadata.toRequestBody("application/json; charset=utf-8".toMediaType()))
-            .addFormDataPart("file", "backup.json", body)
-            .build()
-        val request = Request.Builder()
-            .url("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
-            .addHeader("Authorization", "Bearer $token")
-            .post(multipartBody)
-            .build()
-        return try {
-            val response = client.newCall(request).execute()
+    // Backup su Google Drive (appDataFolder) con cifratura AES-GCM e Retrofit
+    suspend fun backupToGoogleDrive(account: GoogleSignInAccount, credentials: List<CredentialDomain>, context: Context): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val token = DriveServiceHelper.getAccessToken(account, context) ?: return@withContext false
+            val api = provideGoogleDriveApi()
+            val json = buildJsonBackup(credentials)
+            val encryptedJson = com.personal.keypassmanager.utils.AESCipherHelper.encrypt(json)
+            val metadataJson = """{\"name\":\"backup.json\",\"parents\":[\"appDataFolder\"]}"""
+            val metadataBody = okhttp3.RequestBody.create(
+                okhttp3.MediaType.parse("application/json; charset=utf-8"),
+                metadataJson
+            )
+            val fileBody = okhttp3.RequestBody.create(
+                okhttp3.MediaType.parse("application/json; charset=utf-8"),
+                encryptedJson
+            )
+            val metadataPart = okhttp3.MultipartBody.Part.createFormData("metadata", null, metadataBody)
+            val filePart = okhttp3.MultipartBody.Part.createFormData("file", "backup.json", fileBody)
+            val response = api.uploadFile(metadataPart, filePart, "Bearer $token")
             response.isSuccessful
         } catch (e: Exception) {
+            e.printStackTrace()
             false
         }
     }
 
-    // Ripristino da Google Drive (appDataFolder)
-    suspend fun restoreFromGoogleDrive(account: GoogleSignInAccount, context: Context): List<CredentialDomain> {
-        val token = DriveServiceHelper.getAccessToken(account, context) ?: return emptyList()
-        val client = OkHttpClient()
-        val listReq = Request.Builder()
-            .url("https://www.googleapis.com/drive/v3/files?q=name='backup.json'+and+trashed=false+and+'appDataFolder'+in+parents&spaces=appDataFolder&fields=files(id,name)")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        return try {
-            val listResp = client.newCall(listReq).execute()
-            val listBody = listResp.body?.string() ?: return emptyList()
-            val files = JSONObject(listBody).optJSONArray("files") ?: return emptyList()
-            if (files.length() == 0) return emptyList()
-            val fileId = files.getJSONObject(0).getString("id")
-            val getReq = Request.Builder()
-                .url("https://www.googleapis.com/drive/v3/files/$fileId?alt=media")
-                .addHeader("Authorization", "Bearer $token")
-                .get()
-                .build()
-            val getResp = client.newCall(getReq).execute()
-            val json = getResp.body?.string() ?: return emptyList()
-            val result = mutableListOf<CredentialDomain>()
-            val arr = JSONArray(json)
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                result.add(CredentialDomain(0, obj.getString("company"), obj.getString("username"), obj.getString("password")))
-            }
-            result
+    // Ripristino da Google Drive (appDataFolder) con decifratura AES-GCM e Retrofit
+    suspend fun restoreFromGoogleDrive(account: GoogleSignInAccount, context: Context): List<CredentialDomain> = withContext(Dispatchers.IO) {
+        try {
+            val token = DriveServiceHelper.getAccessToken(account, context) ?: return@withContext emptyList()
+            val api = provideGoogleDriveApi()
+            val listResp = api.listFiles(auth = "Bearer $token")
+            if (!listResp.isSuccessful) return@withContext emptyList()
+            val filesJson = listResp.body()?.string() ?: return@withContext emptyList()
+            val filesArr = org.json.JSONObject(filesJson).optJSONArray("files") ?: return@withContext emptyList()
+            if (filesArr.length() == 0) return@withContext emptyList()
+            val fileId = filesArr.getJSONObject(0).getString("id")
+            val getResp = api.downloadFile(fileId, "Bearer $token")
+            if (!getResp.isSuccessful) return@withContext emptyList()
+            val encrypted = getResp.body()?.string() ?: return@withContext emptyList()
+            val json = com.personal.keypassmanager.utils.AESCipherHelper.decrypt(encrypted)
+            parseJsonBackup(json)
         } catch (e: Exception) {
+            e.printStackTrace()
             emptyList()
         }
+    }
+
+    // Retrofit instance per Google Drive REST API
+    private fun provideGoogleDriveApi(): com.personal.keypassmanager.drive.GoogleDriveApi {
+        val retrofit = retrofit2.Retrofit.Builder()
+            .baseUrl("https://www.googleapis.com/")
+            .addConverterFactory(retrofit2.converter.gson.GsonConverterFactory.create())
+            .build()
+        return retrofit.create(com.personal.keypassmanager.drive.GoogleDriveApi::class.java)
     }
 }

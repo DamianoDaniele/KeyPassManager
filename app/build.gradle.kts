@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.personal.keypassmanager"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.personal.keypassmanager"
         minSdk = 29
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
@@ -29,18 +29,19 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
     buildFeatures {
         compose = true
     }
     packagingOptions {
-        exclude("META-INF/NOTICE.md")
-        exclude("META-INF/LICENSE.md")
+        resources {
+            excludes += setOf("META-INF/NOTICE.md", "META-INF/LICENSE.md")
+        }
     }
     packaging {
         resources {
@@ -64,7 +65,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.5")
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
 
     // Jetpack Compose
     implementation(platform(libs.androidx.compose.bom))
@@ -72,24 +74,25 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation("androidx.compose.material:material-icons-extended:1.6.8")
-    implementation("androidx.navigation:navigation-compose:2.9.0")
+    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.navigation.compose)
 
     // Room components
-    implementation("androidx.room:room-runtime:2.7.1")
-    implementation("androidx.room:room-ktx:2.7.1")
-    kapt("androidx.room:room-compiler:2.7.1")
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    kapt(libs.androidx.room.compiler)
 
     // SQLCipher for Android
-    implementation("net.zetetic:android-database-sqlcipher:4.5.4")
+    implementation(libs.sqlcipher)
 
     // Security Crypto for EncryptedSharedPreferences
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation(libs.androidx.security.crypto)
 
-    // Google Sign-In & Drive
-    implementation("com.google.android.gms:play-services-auth:21.0.0")
-    implementation("com.google.api-client:google-api-client-android:2.5.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Google Sign-In (autenticazione moderna, best practice 2025)
+    implementation(libs.google.auth)
+    // Retrofit (best practice 2025 per REST API, preferito a OkHttp diretto)
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
 
     // Testing
     testImplementation(libs.junit)

@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInResult
 import com.google.android.gms.common.api.ApiException
 import com.personal.keypassmanager.drive.DriveServiceHelper
 import com.personal.keypassmanager.navigation.NavGraph
@@ -21,18 +20,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 
 // Activity principale che avvia la UI Compose e la navigazione.
 class MainActivity : ComponentActivity() {
-    private val googleSignInLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val data: Intent? = result.data
-            val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-            try {
-                val account = task.getResult(ApiException::class.java)
-                // Login Google riuscito, ora puoi usare DriveServiceHelper.getDriveService(...)
-                Toast.makeText(this, "Accesso Google Drive riuscito", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(this, "Accesso Google Drive fallito: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-            }
+
+    private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            // Login Google riuscito, ora puoi usare DriveServiceHelper.getDriveService(...)
+            Toast.makeText(this, "Accesso Google Drive riuscito", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Accesso Google Drive fallito: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
