@@ -27,4 +27,7 @@ interface CredentialDao {
     // Restituisce una credenziale per id
     @Query("SELECT * FROM credentials WHERE id = :id")
     suspend fun getCredentialById(id: Int): Credential?
+
+    @Query("DELETE FROM credentials")
+    suspend fun deleteAll()
 }

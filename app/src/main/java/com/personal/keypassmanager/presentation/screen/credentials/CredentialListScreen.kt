@@ -367,7 +367,7 @@ fun CredentialListScreen(
                     Button(onClick = {
                         val account = DriveServiceHelper.getLastSignedInAccount(context)
                         if (account != null) {
-                            credentialViewModel.backupToGoogleDrive(account, context) { ok ->
+                            credentialViewModel.backupToGoogleDrive(account) { ok ->
                                 scope.launch {
                                     snackbarHostState.showSnackbar(
                                         if (ok) "Backup su Drive completato" else "Backup su Drive fallito"
@@ -382,7 +382,7 @@ fun CredentialListScreen(
                     Button(onClick = {
                         val account = DriveServiceHelper.getLastSignedInAccount(context)
                         if (account != null) {
-                            credentialViewModel.restoreFromGoogleDrive(account, context) { restored ->
+                            credentialViewModel.restoreFromGoogleDrive(account) { restored ->
                                 scope.launch {
                                     snackbarHostState.showSnackbar(
                                         if (restored.isNotEmpty()) "${restored.size} credenziali ripristinate da Drive" else "Nessun dato trovato su Drive"

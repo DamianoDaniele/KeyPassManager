@@ -57,6 +57,9 @@ android {
             )
         }
     }
+    lint {
+        baseline = file("lint-baseline.xml")
+    }
 }
 
 dependencies {
@@ -90,9 +93,14 @@ dependencies {
 
     // Google Sign-In (autenticazione moderna, best practice 2025)
     implementation(libs.google.auth)
-    // Retrofit (best practice 2025 per REST API, preferito a OkHttp diretto)
-    implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    // Retrofit with OkHttp (best practice 2025)
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    
 
     // Testing
     testImplementation(libs.junit)

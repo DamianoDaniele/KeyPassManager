@@ -18,6 +18,7 @@ object DatabasePassphraseProvider {
 
     private const val PREFS_NAME = "encrypted_prefs"
     private const val PASSPHRASE_KEY = "db_passphrase" // This is now ONLY the master password
+    private const val SALT_KEY = "pbe_salt"
     private const val DB_ENCRYPTION_KEY = "db_encryption_key" // New key for database encryption
     private const val SECURITY_ANSWER1_KEY = "security_answer1"
     private const val SECURITY_ANSWER2_KEY = "security_answer2"
@@ -27,20 +28,33 @@ object DatabasePassphraseProvider {
     private const val SESSION_TIMEOUT_MINUTES = 15L // Timeout di 15 minuti
 
     // Restituisce la SupportFactory per Room con la chiave derivata
-    fun getSupportFactory(password: String): SupportFactory {
-        val passphrase = deriveKeyFromPassword(password)
+    fun getSupportFactory(context: Context, password: String): SupportFactory {
+        val passphrase = deriveKeyFromPassword(context, password)
         return SupportFactory(passphrase)
     }
 
     // Deriva una chiave sicura dalla password
-    private fun deriveKeyFromPassword(password: String): ByteArray {
-        val salt = "fixed_salt_placeholder".toByteArray() // Should be unique per user in production
+    private fun deriveKeyFromPassword(context: Context, password: String): ByteArray {
+        val salt = getOrCreateSalt(context)
         val iterations = 10000
         val keyLength = 256 // 256 bits for AES-256
 
         val spec = PBEKeySpec(password.toCharArray(), salt, iterations, keyLength)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         return factory.generateSecret(spec).encoded
+    }
+
+    // Genera e salva un salt unico per l'utente
+    private fun getOrCreateSalt(context: Context): ByteArray {
+        val prefs = getEncryptedSharedPreferences(context)
+        var saltBase64 = prefs.getString(SALT_KEY, null)
+        if (saltBase64 == null) {
+            val salt = ByteArray(16)
+            SecureRandom().nextBytes(salt)
+            saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+            prefs.edit().putString(SALT_KEY, saltBase64).apply()
+        }
+        return Base64.decode(saltBase64, Base64.NO_WRAP)
     }
 
     // Versione sospesa per accesso sicuro alle EncryptedSharedPreferences
@@ -138,20 +152,24 @@ object DatabasePassphraseProvider {
     // Salva la password master (sospesa)
     suspend fun saveMasterPassword(context: Context, password: String) = withContext(Dispatchers.IO) {
         val prefs = getEncryptedSharedPreferencesAsync(context)
-        prefs.edit().putString(PASSPHRASE_KEY, password).apply()
+        val salt = getOrCreateSalt(context)
+        val hash = deriveKeyFromPassword(context, password)
+        prefs.edit().putString(PASSPHRASE_KEY, Base64.encodeToString(hash, Base64.NO_WRAP)).apply()
     }
 
     // Controlla se la password master fornita corrisponde a quella salvata (sospesa)
     suspend fun checkMasterPassword(context: Context, password: String): Boolean = withContext(Dispatchers.IO) {
         val prefs = getEncryptedSharedPreferencesAsync(context)
-        val saved = prefs.getString(PASSPHRASE_KEY, null)
-        saved == password
+        val savedHash = prefs.getString(PASSPHRASE_KEY, null)
+        if (savedHash == null) return@withContext false
+        val newHash = deriveKeyFromPassword(context, password)
+        Base64.decode(savedHash, Base64.NO_WRAP).contentEquals(newHash)
     }
 
-    // Restituisce la password master salvata (sospesa)
+    // Restituisce la password master salvata (sospesa) - DEPRECATO
     suspend fun getMasterPassword(context: Context): String = withContext(Dispatchers.IO) {
-        val prefs = getEncryptedSharedPreferencesAsync(context)
-        prefs.getString(PASSPHRASE_KEY, "") ?: ""
+        // Non è sicuro restituire la password, questa funzione è deprecata
+        ""
     }
 
     // Salva le risposte alle domande di sicurezza (sospesa)
